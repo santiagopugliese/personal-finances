@@ -1,103 +1,113 @@
-import Image from "next/image";
+'use client'
+import { useEffect, useMemo, useState } from 'react'
+import { createBrowserClient } from '@supabase/ssr'
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts'
+import { format, parseISO } from 'date-fns'
 
-export default function Home() {
+type MonthlyRow = {
+  month_start: string // ISO date from view
+  category_id: string | null
+  expenses_ars: number
+  incomes_ars: number
+}
+type Cat = { id: string; name: string }
+
+export const supabase = createBrowserClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
+
+export default function HomePage() {
+  const [rows, setRows] = useState<MonthlyRow[]>([])
+  const [cats, setCats] = useState<Cat[]>([])
+  const [monthFilter, setMonthFilter] = useState<string>('') // 'YYYY-MM' or ''
+
+  useEffect(() => {
+    async function load() {
+      const [{ data: v }, { data: c }] = await Promise.all([
+        supabase.from('v_monthly_category').select('month_start,category_id,expenses_ars,incomes_ars'),
+        supabase.from('categories').select('id,name')
+      ])
+      setRows(v ?? [])
+      setCats(c ?? [])
+    }
+    load()
+  }, [])
+
+  const catMap = useMemo(() => new Map(cats.map(c => [c.id, c.name])), [cats])
+
+  const months = useMemo(() => {
+    const s = new Set<string>()
+    for (const r of rows) {
+      const m = format(parseISO(r.month_start), 'yyyy-MM')
+      s.add(m)
+    }
+    return Array.from(s).sort()
+  }, [rows])
+
+  const filtered = useMemo(() => {
+    if (!monthFilter) return rows
+    return rows.filter(r => format(parseISO(r.month_start), 'yyyy-MM') === monthFilter)
+  }, [rows, monthFilter])
+
+  // Recharts data: por mes → columnas por categoría (gastos)
+  const chartData = useMemo(() => {
+    const byMonth = new Map<string, Record<string, any>>()
+    for (const r of filtered) {
+      const key = r.month_start
+      if (!byMonth.has(key)) byMonth.set(key, { month: format(parseISO(key), 'MMM yyyy') })
+      const obj = byMonth.get(key)!
+      const catName = r.category_id ? (catMap.get(r.category_id) ?? 'Sin categoría') : 'Sin categoría'
+      obj[catName] = (obj[catName] ?? 0) + Number(r.expenses_ars)
+    }
+    return Array.from(byMonth.entries())
+      .sort((a,b)=> parseISO(a[0]).getTime() - parseISO(b[0]).getTime())
+      .map(([_, v]) => v)
+  }, [filtered, catMap])
+
+  const series = useMemo(() => {
+    const set = new Set<string>()
+    chartData.forEach(row => Object.keys(row).forEach(k => { if (k !== 'month') set.add(k) }))
+    return Array.from(set)
+  }, [chartData])
+
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+    <div className="space-y-6">
+      <header className="flex items-center gap-3">
+        <h1 className="text-2xl font-semibold">Resumen mensual</h1>
+        <select
+          className="border rounded px-2 py-1 ml-auto"
+          value={monthFilter}
+          onChange={(e)=>setMonthFilter(e.target.value)}
+        >
+          <option value="">Todos los meses</option>
+          {months.map(m => (
+            <option key={m} value={m}>
+              {format(parseISO(m + '-01'), 'MMM yyyy')}
+            </option>
+          ))}
+        </select>
+      </header>
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      <div className="p-4 bg-white rounded-xl shadow-sm">
+        {chartData.length === 0 ? (
+          <p className="text-sm text-neutral-600">Sin datos aún.</p>
+        ) : (
+          <div className="h-80">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData}>
+                <XAxis dataKey="month" />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                {series.map((s) => (
+                  <Bar key={s} dataKey={s} stackId="g" />
+                ))}
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </div>
     </div>
-  );
+  )
 }
