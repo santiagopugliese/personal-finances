@@ -21,12 +21,16 @@
     "date-fns": "^4.1.0",
     "lucide-react": "^0.539.0",
     "next": "15.4.6",
-    "next-pwa": "^5.6.0",
+    "next-pwa": "5.6.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "recharts": "^3.1.2",
     "sonner": "^2.0.7",
-    "zod": "^4.1.5"
+    "zod": "^4.1.5",
+    "glob": "7.2.3"
+  },
+  "overrides": {
+    "glob": "7.2.3"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
@@ -36,7 +40,6 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "15.4.6",
-    "glob": "^7.2.3",
     "tailwind-merge": "^3.3.1",
     "tailwindcss": "^4",
     "tw-animate-css": "^1.3.6",
