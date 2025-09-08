@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabaseClient'
 import { format } from 'date-fns'
 
 type Category = { id: string; name: string }
+type ApiResp<T> = { data?: T; error?: string }
 
 export default function TransactionForm({ onCreated }: { onCreated?: () => void }) {
   const [date, setDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'))
@@ -22,24 +23,30 @@ export default function TransactionForm({ onCreated }: { onCreated?: () => void 
   const [err, setErr] = useState<string | null>(null)
 
   async function load() {
-    // categorías desde tu API (aplica RLS del server)
-    const rCats = await fetch('/api/categories', { cache: 'no-store' })
-    const jCats = await rCats.json().catch(() => ({ data: [] }))
-    setCats((jCats.data ?? []) as Category[])
+    try {
+      // categorías desde tu API (aplica RLS del server)
+      const rCats = await fetch('/api/categories', { cache: 'no-store' })
+      const jCats = (await rCats.json().catch(() => ({}))) as ApiResp<Category[]>
+      if (!rCats.ok) throw new Error(jCats.error || 'Error cargando categorías')
+      setCats(jCats.data ?? [])
 
-    // último blue desde supabase directo (simple)
-    const { data: r } = await supabase
-      .from('exchange_rates')
-      .select('rate_date,blue_sell')
-      .order('rate_date', { ascending: false })
-      .limit(1)
-    const last = r?.[0]?.blue_sell
-    setBlue(typeof last === 'number' ? last : null)
+      // último blue desde supabase directo (simple)
+      const { data: r } = await supabase
+        .from('exchange_rates')
+        .select('rate_date,blue_sell')
+        .order('rate_date', { ascending: false })
+        .limit(1)
+      const last = r?.[0]?.blue_sell
+      setBlue(typeof last === 'number' ? last : null)
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e)
+      setErr(msg)
+    }
   }
 
   useEffect(() => {
-    load()
-    const onFocus = () => load()
+    void load()
+    const onFocus = () => { void load() }
     window.addEventListener('focus', onFocus)
     return () => window.removeEventListener('focus', onFocus)
   }, [])
@@ -86,15 +93,16 @@ export default function TransactionForm({ onCreated }: { onCreated?: () => void 
           amount_ars,
         }),
       })
-      const json = await res.json().catch(() => ({}))
+      const json = (await res.json().catch(() => ({}))) as ApiResp<unknown>
       if (!res.ok) throw new Error(json.error || 'Error al guardar')
 
       setMsg('¡Movimiento guardado!')
       setAmount('')
       setDesc('')
       onCreated?.()
-    } catch (e: any) {
-      setErr(e?.message ?? String(e))
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e)
+      setErr(msg)
     } finally {
       setSaving(false)
     }
@@ -119,7 +127,7 @@ export default function TransactionForm({ onCreated }: { onCreated?: () => void 
           <select
             className="border rounded px-2 py-1"
             value={type}
-            onChange={(e) => setType(e.target.value as any)}
+            onChange={(e) => setType(e.target.value as 'income' | 'expense')}
           >
             <option value="expense">Gasto</option>
             <option value="income">Ingreso</option>
@@ -131,7 +139,7 @@ export default function TransactionForm({ onCreated }: { onCreated?: () => void 
           <select
             className="border rounded px-2 py-1"
             value={currency}
-            onChange={(e) => setCurrency(e.target.value as any)}
+            onChange={(e) => setCurrency(e.target.value as 'ARS' | 'USD')}
           >
             <option value="ARS">ARS</option>
             <option value="USD">USD</option>
@@ -183,8 +191,7 @@ export default function TransactionForm({ onCreated }: { onCreated?: () => void 
         {currency === 'USD' ? (
           <>
             <span>
-              Cotización blue:{' '}
-              {blue ? `$${blue.toFixed(2)} ARS/USD` : 'cargando…'}
+              Cotización blue: {blue ? `$${blue.toFixed(2)} ARS/USD` : 'cargando…'}
             </span>
             <br />
             <span>

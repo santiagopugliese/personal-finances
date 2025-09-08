@@ -1,6 +1,5 @@
 'use client'
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 
 export default function SignUpPage() {
@@ -9,7 +8,6 @@ export default function SignUpPage() {
   const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [infoMsg, setInfoMsg] = useState<string | null>(null)
-  const router = useRouter()
 
   async function handleSignUp(e: React.FormEvent) {
     e.preventDefault()
