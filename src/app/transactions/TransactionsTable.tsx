@@ -13,6 +13,8 @@ type Tx = {
   description: string | null
 }
 
+type ApiList<T> = { data?: T; error?: string }
+
 export default function TransactionsTable({ refreshKey }: { refreshKey?: number }) {
   const [rows, setRows] = useState<Tx[]>([])
   const [loading, setLoading] = useState(true)
@@ -23,37 +25,43 @@ export default function TransactionsTable({ refreshKey }: { refreshKey?: number 
     try {
       setLoading(true)
       const res = await fetch('/api/transactions?limit=50', { cache: 'no-store' })
-      const json = await res.json()
+      const json = (await res.json()) as ApiList<Tx[]>
       if (!res.ok) throw new Error(json.error || 'Error al cargar')
       setRows(json.data ?? [])
-    } catch (e: any) {
-      setErr(e.message ?? String(e))
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e)
+      setErr(msg)
     } finally {
       setLoading(false)
     }
   }
 
-  useEffect(() => { load() }, [])
-  useEffect(() => { if (refreshKey !== undefined) load() }, [refreshKey])
+  useEffect(() => {
+    void load()
+  }, [])
+  useEffect(() => {
+    if (refreshKey !== undefined) void load()
+  }, [refreshKey])
 
   async function remove(id: string) {
     if (!confirm('¿Eliminar este movimiento?')) return
     try {
       setDeleting(id)
       const res = await fetch(`/api/transactions/${id}`, { method: 'DELETE' })
-      const json = await res.json().catch(() => ({}))
+      const json = (await res.json().catch(() => ({}))) as { error?: string }
       if (!res.ok) throw new Error(json.error || 'Error al eliminar')
       setRows(prev => prev.filter(r => r.id !== id))
-    } catch (e: any) {
-      alert(e.message ?? String(e))
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e)
+      alert(msg)
     } finally {
       setDeleting(null)
     }
   }
 
   return (
-    <div className="rounded-2xl border overflow-x-auto">
-      <div className="p-3 border-b font-medium">Últimos movimientos</div>
+    <div className="overflow-x-auto rounded-2xl border">
+      <div className="border-b p-3 font-medium">Últimos movimientos</div>
       {loading ? (
         <div className="p-3 text-sm text-gray-500">Cargando…</div>
       ) : err ? (
@@ -64,12 +72,12 @@ export default function TransactionsTable({ refreshKey }: { refreshKey?: number 
         <table className="min-w-full text-sm">
           <thead className="bg-gray-50">
             <tr>
-              <th className="text-left px-3 py-2">Fecha</th>
-              <th className="text-left px-3 py-2">Tipo</th>
-              <th className="text-right px-3 py-2">Monto</th>
-              <th className="text-left px-3 py-2">Moneda</th>
-              <th className="text-right px-3 py-2">ARS</th>
-              <th className="text-left px-3 py-2">Descripción</th>
+              <th className="px-3 py-2 text-left">Fecha</th>
+              <th className="px-3 py-2 text-left">Tipo</th>
+              <th className="px-3 py-2 text-right">Monto</th>
+              <th className="px-3 py-2 text-left">Moneda</th>
+              <th className="px-3 py-2 text-right">ARS</th>
+              <th className="px-3 py-2 text-left">Descripción</th>
               <th className="px-3 py-2"></th>
             </tr>
           </thead>
@@ -78,15 +86,19 @@ export default function TransactionsTable({ refreshKey }: { refreshKey?: number 
               <tr key={r.id} className="border-t">
                 <td className="px-3 py-2">{r.date}</td>
                 <td className="px-3 py-2">{r.type === 'expense' ? 'Gasto' : 'Ingreso'}</td>
-                <td className="px-3 py-2 text-right">{r.amount.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</td>
+                <td className="px-3 py-2 text-right">
+                  {r.amount.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                </td>
                 <td className="px-3 py-2">{r.currency}</td>
                 <td className="px-3 py-2 text-right">
-                  {r.amount_ars != null ? r.amount_ars.toLocaleString('es-AR', { minimumFractionDigits: 2 }) : '—'}
+                  {r.amount_ars != null
+                    ? r.amount_ars.toLocaleString('es-AR', { minimumFractionDigits: 2 })
+                    : '—'}
                 </td>
                 <td className="px-3 py-2">{r.description ?? '—'}</td>
                 <td className="px-3 py-2 text-right">
                   <button
-                    onClick={() => remove(r.id)}
+                    onClick={() => void remove(r.id)}
                     disabled={deleting === r.id}
                     className="text-red-600 disabled:opacity-50"
                   >

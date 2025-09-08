@@ -19,7 +19,8 @@ export default function CategoriesTable({
   })
   const [busy, setBusy] = useState<string | null>(null)
 
-  function startEdit(cat: any) {
+  type Category = { id: string; name: string; color?: string }
+  function startEdit(cat: Category) {
     setEditingId(cat.id)
     setTmp({ name: cat.name, color: cat.color || '#999999' })
   }

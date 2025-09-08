@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 
@@ -13,9 +13,13 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const inFlight = useRef(false) // evita doble submit
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
+    if (inFlight.current) return
+    inFlight.current = true
+
     setErrorMsg(null)
     setLoading(true)
     try {
@@ -35,7 +39,7 @@ export default function LoginPage() {
       const res = await fetch('/api/auth/set-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include', // asegura que el browser acepte Set-Cookie
+        credentials: 'include',
         body: JSON.stringify({
           access_token: session.access_token,
           refresh_token: session.refresh_token
@@ -43,23 +47,25 @@ export default function LoginPage() {
       })
 
       if (!res.ok) {
-        const j = await res.json().catch(() => ({}))
+        const j = await res.json().catch(() => ({} as { error?: string }))
         throw new Error(j.error || 'Error setting server session')
       }
 
-      // 4) Redirigir (respeta ?next=)
+      // 4) Redirigir
       router.push(next)
       router.refresh()
-    } catch (err: any) {
-      setErrorMsg(err?.message ?? String(err))
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      setErrorMsg(msg)
     } finally {
       setLoading(false)
+      inFlight.current = false
     }
   }
 
   return (
     <div className="mx-auto max-w-sm p-6">
-      <h1 className="text-2xl font-semibold mb-4">Iniciar sesión</h1>
+      <h1 className="mb-4 text-2xl font-semibold">Iniciar sesión</h1>
 
       <form onSubmit={handleLogin} className="space-y-3 rounded-2xl border p-4">
         <label className="block">
@@ -94,7 +100,7 @@ export default function LoginPage() {
           {loading ? 'Ingresando…' : 'Ingresar'}
         </button>
 
-        <div className="min-h-[1.25rem] text-sm pt-1" aria-live="polite">
+        <div className="min-h-[1.25rem] pt-1 text-sm" aria-live="polite">
           {errorMsg && <p className="text-red-600">{errorMsg}</p>}
         </div>
       </form>
