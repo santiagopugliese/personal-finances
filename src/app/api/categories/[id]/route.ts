@@ -1,3 +1,4 @@
+// src/app/api/categories/[id]/route.ts
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createSupabaseServer } from '@/lib/supabaseServer'
@@ -7,7 +8,9 @@ const PatchSchema = z.object({
   color: z.string().optional(),
 })
 
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+type Ctx = { params: { id: string } }
+
+export async function PATCH(req: Request, context: Ctx) {
   const res = new NextResponse()
   const supabase = await createSupabaseServer(res)
 
@@ -16,16 +19,17 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: res.headers })
   }
 
-  const body = await req.json()
+  const body = await req.json().catch(() => null)
   const parsed = PatchSchema.safeParse(body)
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400, headers: res.headers })
   }
 
+  const { id } = context.params
   const { data, error } = await supabase
     .from('categories')
     .update(parsed.data)
-    .eq('id', params.id)
+    .eq('id', id)
     .select('*')
     .single()
 
@@ -36,7 +40,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   return NextResponse.json({ data }, { headers: res.headers })
 }
 
-export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(req: Request, context: Ctx) {
   const res = new NextResponse()
   const supabase = await createSupabaseServer(res)
 
@@ -45,10 +49,11 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: res.headers })
   }
 
+  const { id } = context.params
   const { error } = await supabase
     .from('categories')
     .delete()
-    .eq('id', params.id)
+    .eq('id', id)
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400, headers: res.headers })
