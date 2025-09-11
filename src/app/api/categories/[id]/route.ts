@@ -1,4 +1,3 @@
-// src/app/api/categories/[id]/route.ts
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createSupabaseServer } from '@/lib/supabaseServer'
@@ -8,9 +7,7 @@ const PatchSchema = z.object({
   color: z.string().optional(),
 })
 
-type Ctx = { params: { id: string } }
-
-export async function PATCH(req: Request, context: Ctx) {
+export async function PATCH(req: Request, context: unknown) {
   const res = new NextResponse()
   const supabase = await createSupabaseServer(res)
 
@@ -25,7 +22,8 @@ export async function PATCH(req: Request, context: Ctx) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400, headers: res.headers })
   }
 
-  const { id } = context.params
+  const { id } = (context as { params: { id: string } }).params
+
   const { data, error } = await supabase
     .from('categories')
     .update(parsed.data)
@@ -40,7 +38,7 @@ export async function PATCH(req: Request, context: Ctx) {
   return NextResponse.json({ data }, { headers: res.headers })
 }
 
-export async function DELETE(req: Request, context: Ctx) {
+export async function DELETE(_req: Request, context: unknown) {
   const res = new NextResponse()
   const supabase = await createSupabaseServer(res)
 
@@ -49,7 +47,8 @@ export async function DELETE(req: Request, context: Ctx) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: res.headers })
   }
 
-  const { id } = context.params
+  const { id } = (context as { params: { id: string } }).params
+
   const { error } = await supabase
     .from('categories')
     .delete()
