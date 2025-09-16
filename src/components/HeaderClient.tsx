@@ -13,14 +13,14 @@ export default function HeaderClient() {
   useEffect(() => {
     let mounted = true
 
-    // Estado inicial: usar getSession (no falla si no hay sesión)
+    // Estado inicial
     supabase.auth.getSession().then(({ data }) => {
       if (!mounted) return
       setEmail(data.session?.user?.email ?? null)
       setLoading(false)
     })
 
-    // Escuchar cambios de auth
+    // Cambios de auth
     const { data: sub } = supabase.auth.onAuthStateChange(
       (event: AuthChangeEvent, session) => {
         switch (event) {
@@ -30,7 +30,8 @@ export default function HeaderClient() {
             setEmail(session?.user?.email ?? null)
             break
           case 'SIGNED_OUT':
-          case 'USER_DELETED':
+            // Algunas versiones tienen 'USER_DELETED', pero no está en tu tipo.
+            // Lo tratamos igual que SIGNED_OUT.
             setEmail(null)
             break
           default:
@@ -38,9 +39,10 @@ export default function HeaderClient() {
         }
       }
     )
+
     return () => {
       mounted = false
-      sub.subscription.unsubscribe()
+      sub?.subscription?.unsubscribe()
     }
   }, [])
 
@@ -49,7 +51,6 @@ export default function HeaderClient() {
       setSigningOut(true)
       await supabase.auth.signOut({ scope: 'global' })
       setEmail(null)
-      // navegación dura para evitar que quede UI vieja
       window.location.assign('/login')
     } finally {
       setSigningOut(false)
@@ -65,8 +66,7 @@ export default function HeaderClient() {
           <span className="text-neutral-500">…</span>
         ) : email ? (
           <>
-            {/* 🔒 Enlaces protegidos — solo con sesión */}
-            <Link href="/transactions" className="underline">Nuevo movimiento</Link>
+            <Link href="/transactions/create" className="underline">Nuevo movimiento</Link>
             <Link href="/categories" className="rounded-xl border px-3 py-1">Categorías</Link>
             <span className="text-neutral-600">{email}</span>
             <button
@@ -79,7 +79,6 @@ export default function HeaderClient() {
           </>
         ) : (
           <>
-            {/* 🌐 Solo mostrar Login / Sign Up si NO hay sesión */}
             <Link href="/login" className="underline">Login</Link>
             <Link href="/signup" className="underline">Sign Up</Link>
           </>
