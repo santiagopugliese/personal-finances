@@ -6,15 +6,18 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } fro
 import { format, parseISO } from 'date-fns'
 
 type MonthlyRow = {
-  month_start: string  // ISO date (p.ej. '2025-09-01')
+  month_start: string
   category_id: string | null
   expenses_ars: number
   incomes_ars: number
 }
 type Cat = { id: string; name: string }
 
-/** Fila para Recharts: clave fija 'month' + columnas dinámicas por categoría (números) */
-type ChartRow = { month: string } & Record<string, number>
+// ✅ month es string, las demás claves dinámicas pueden ser number
+interface ChartRow {
+  month: string
+  [series: string]: number | string
+}
 
 export default function HomePage() {
   const [rows, setRows] = useState<MonthlyRow[]>([])
@@ -28,10 +31,7 @@ export default function HomePage() {
           .from('v_monthly_category')
           .select('month_start,category_id,expenses_ars,incomes_ars')
           .returns<MonthlyRow[]>(),
-        supabase
-          .from('categories')
-          .select('id,name')
-          .returns<Cat[]>(),
+        supabase.from('categories').select('id,name').returns<Cat[]>(),
       ])
       setRows(v ?? [])
       setCats(c ?? [])
@@ -39,24 +39,20 @@ export default function HomePage() {
     void load()
   }, [])
 
-  const catMap = useMemo(() => new Map(cats.map((c) => [c.id, c.name] as const)), [cats])
+  const catMap = useMemo(() => new Map(cats.map(c => [c.id, c.name] as const)), [cats])
 
   const months = useMemo(() => {
     const s = new Set<string>()
-    for (const r of rows) {
-      const m = format(parseISO(r.month_start), 'yyyy-MM')
-      s.add(m)
-    }
+    for (const r of rows) s.add(format(parseISO(r.month_start), 'yyyy-MM'))
     return Array.from(s).sort()
   }, [rows])
 
   const filtered = useMemo(() => {
     if (!monthFilter) return rows
-    return rows.filter((r) => format(parseISO(r.month_start), 'yyyy-MM') === monthFilter)
+    return rows.filter(r => format(parseISO(r.month_start), 'yyyy-MM') === monthFilter)
   }, [rows, monthFilter])
 
-  // Recharts data: por mes → columnas por categoría (gastos)
-  const chartData: ChartRow[] = useMemo(() => {
+  const chartData = useMemo<ChartRow[]>(() => {
     const byMonth = new Map<string, ChartRow>()
     for (const r of filtered) {
       const key = r.month_start
@@ -65,7 +61,8 @@ export default function HomePage() {
       }
       const obj = byMonth.get(key)!
       const catName = r.category_id ? (catMap.get(r.category_id) ?? 'Sin categoría') : 'Sin categoría'
-      obj[catName] = (obj[catName] ?? 0) + Number(r.expenses_ars)
+      // sumamos gastos por categoría
+      obj[catName] = (typeof obj[catName] === 'number' ? (obj[catName] as number) : 0) + r.expenses_ars
     }
     return Array.from(byMonth.entries())
       .sort((a, b) => parseISO(a[0]).getTime() - parseISO(b[0]).getTime())
@@ -74,8 +71,8 @@ export default function HomePage() {
 
   const series = useMemo(() => {
     const set = new Set<string>()
-    chartData.forEach((row) => {
-      Object.keys(row).forEach((k) => {
+    chartData.forEach(row => {
+      Object.keys(row).forEach(k => {
         if (k !== 'month') set.add(k)
       })
     })
@@ -93,7 +90,7 @@ export default function HomePage() {
             onChange={(e) => setMonthFilter(e.target.value)}
           >
             <option value="">Todos los meses</option>
-            {months.map((m) => (
+            {months.map(m => (
               <option key={m} value={m}>
                 {format(parseISO(m + '-01'), 'MMM yyyy')}
               </option>
@@ -112,7 +109,7 @@ export default function HomePage() {
                   <YAxis />
                   <Tooltip />
                   <Legend />
-                  {series.map((s) => (
+                  {series.map(s => (
                     <Bar key={s} dataKey={s} stackId="g" />
                   ))}
                 </BarChart>
